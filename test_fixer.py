@@ -31,6 +31,14 @@ CONVERT_BAD = {
     },
 }
 
+CONVERT_ZERO = {
+    "success": False,
+    "error": {
+        "code": 403,
+        "info": "You have not specified an amount to be converted.",
+    }
+}
+
 
 def mock_fixer_api(status_code, json_response):
     class FakeResponse:
@@ -124,3 +132,9 @@ def test_bad_convert_amount():
     with pytest.raises(UnknownError) as excinfo:
         fixer_api.convert_amount('EUR', 'GBP', 100)
     assert 'result not in response' in str(excinfo.value)
+
+
+def test_convert_zero():
+    fixer_api = mock_fixer_api(200, CONVERT_ZERO)
+
+    assert fixer_api.convert_amount('USD', 'GBP', 0) == 0

@@ -83,8 +83,11 @@ class FixerApi:
         """
         Get the latest conversion rate from source to target currency.
         """
-        if not (is_valid_currency_code(source) and is_valid_currency_code(target)):
-            raise InvalidArgumentsError('unsupported currency')
+        if not is_valid_currency_code(source):
+            raise InvalidArgumentsError(f'unsupported currency: {source}')
+
+        if not is_valid_currency_code(target):
+            raise InvalidArgumentsError(f'unsupported currency: {target}')
 
         params = {
             'base': source,
@@ -102,11 +105,19 @@ class FixerApi:
         """
         Convert an amount from source to target.
         """
-        if not (is_valid_currency_code(source) and is_valid_currency_code(target)):
-            raise InvalidArgumentsError('unsupported currency')
+        if not is_valid_currency_code(source):
+            raise InvalidArgumentsError(f'unsupported currency: {source}')
+
+        if not is_valid_currency_code(target):
+            raise InvalidArgumentsError(f'unsupported currency: {target}')
 
         if not is_valid_amount(amount):
             raise InvalidArgumentsError('invalid amount')
+
+        # Fixer does not support 0 amounts but there is no reason that we can't
+        # support it.
+        if amount == 0:
+            return 0
 
         params = {
             'from': source,

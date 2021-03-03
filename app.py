@@ -24,11 +24,14 @@ def conversion_rate(source, target):
 
     try:
         conversion_rate = fixer_api.latest_rate(source, target)
-    except InvalidArgumentsError:
+    except InvalidArgumentsError as e:
+        app.logger.error(str(e))
         abort(400) # Bad Request
     except UnknownError as e:
+        app.logger.error(str(e))
         abort(500) # Internal Server Error
-    except UpstreamError:
+    except UpstreamError as e:
+        app.logger.error(str(e))
         abort(502) # Bad Gateway
 
     return jsonify({
@@ -46,22 +49,25 @@ def convert_amount(source, target, amount):
 
     try:
         converted = fixer_api.convert_amount(source, target, amount)
-    except InvalidArgumentsError:
+    except InvalidArgumentsError as e:
+        app.logger.error(str(e))
         abort(400) # Bad Request
     except UnknownError as e:
+        app.logger.error(str(e))
         abort(500) # Internal Server Error
-    except UpstreamError:
+    except UpstreamError as e:
+        app.logger.error(str(e))
         abort(502) # Bad Gateway
 
-    original_formatted, _, _ = format_currency_value(amount)
-    converted_formatted, major_units, minor_units = format_currency_value(converted)
+    original_round, original_formatted, _, _ = format_currency_value(amount)
+    converted_round, converted_formatted, major_units, minor_units = format_currency_value(converted)
 
     return jsonify({
         'source': source,
         'target': target,
-        'original': original,
+        'original': original_round,
         'original_str': original_formatted,
-        'converted': converted,
+        'converted': converted_round,
         'converted_str': converted_formatted,
         'major_units': major_units,
         'minor_units': minor_units,
@@ -78,4 +84,4 @@ def format_currency_value(exact):
     formatted = '{:0.2f}'.format(converted)
     major_units = int(converted)
     minor_units = round(100 * (exact - major_units))
-    return formatted, major_units, minor_units
+    return converted, formatted, major_units, minor_units
