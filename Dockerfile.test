@@ -1,0 +1,10 @@
+FROM python:3.8.6
+
+RUN mkdir -p /usr/src/app
+WORKDIR /usr/src/app
+
+COPY requirements-test.txt /usr/src/app
+RUN pip install -v -r requirements-test.txt
+COPY . /usr/src/app
+
+CMD pytest -v

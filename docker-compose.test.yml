@@ -1,0 +1,9 @@
+app:
+    build: .
+    dockerfile: Dockerfile.test
+    environment:
+        - FLASK_DEBUG=1
+    env_file:
+        - secrets.env
+    volumes:
+        - .:/usr/src/app

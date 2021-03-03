@@ -13,23 +13,23 @@ def health():
     api_response = fixer_api.latest()
     return {
         'fixer_ok': api_response.get('success', False),
-        #'response': api_response,
+        # 'response': api_response, # uncomment this for all rates in the health check
     }
 
 
 @app.route('/rates/<string:source>/<string:target>')
 def conversion_rate(source, target):
-    source, target = parse_currency_codes(source, target)
+    source = source.upper()
+    target = target.upper()
 
     try:
         conversion_rate = fixer_api.latest_rate(source, target)
-    except ValueError:
+    except InvalidArgumentsError:
         abort(400) # Bad Request
-    except RuntimeError as e:
-        if e.args[0] == 'fixer API is unavailable':
-            abort(502) # Bad Gateway
-        else:
-            abort(500) # Internal Server Error
+    except UnknownError as e:
+        abort(500) # Internal Server Error
+    except UpstreamError:
+        abort(502) # Bad Gateway
 
     return jsonify({
         'source': source,
@@ -41,20 +41,17 @@ def conversion_rate(source, target):
 @app.route('/convert/<string:source>/<string:target>/<int:amount>')
 @app.route('/convert/<string:source>/<string:target>/<float:amount>')
 def convert_amount(source, target, amount):
-    if not is_valid_amount(amount):
-        abort(400)
-
-    source, target = parse_currency_codes(source, target)
+    source = source.upper()
+    target = target.upper()
 
     try:
         converted = fixer_api.convert_amount(source, target, amount)
-    except ValueError:
+    except InvalidArgumentsError:
         abort(400) # Bad Request
-    except RuntimeError as e:
-        if e.args[0] == 'fixer API is unavailable':
-            abort(502) # Bad Gateway
-        else:
-            abort(500) # Internal Server Error
+    except UnknownError as e:
+        abort(500) # Internal Server Error
+    except UpstreamError:
+        abort(502) # Bad Gateway
 
     original_formatted, _, _ = format_currency_value(amount)
     converted_formatted, major_units, minor_units = format_currency_value(converted)
@@ -62,26 +59,21 @@ def convert_amount(source, target, amount):
     return jsonify({
         'source': source,
         'target': target,
-        'original': original_formatted,
-        'converted': converted_formatted,
+        'original': original,
+        'original_str': original_formatted,
+        'converted': converted,
+        'converted_str': converted_formatted,
         'major_units': major_units,
         'minor_units': minor_units,
     })
 
 
-def parse_currency_codes(source, target):
-    """
-    I am OK with giving the client some leeway on capitalization.
-    """
-    source = source.upper()
-    target = target.upper()
-    if not (is_valid_currency_code(source) and is_valid_currency_code(target)):
-        abort(400) # 400 - Bad Request
-
-    return source, target
-
-
 def format_currency_value(exact):
+    """
+    This just rounds the currency to two decimals exactly, since most languages
+    don't support trailing zeroes. I also included major and minor units in
+    case a frontend wants to visually format those differently.
+    """
     converted = round(exact, 2)
     formatted = '{:0.2f}'.format(converted)
     major_units = int(converted)
