@@ -1,6 +1,6 @@
 import os
 from flask import Flask, jsonify, abort
-from currency import *
+from fixer import *
 
 
 FIXER_API_KEY = os.environ['FIXER_API_KEY']
@@ -20,10 +20,16 @@ def health():
 @app.route('/rates/<string:source>/<string:target>')
 def conversion_rate(source, target):
     source, target = parse_currency_codes(source, target)
-    base, rates = get_base_and_rates()
 
-    converter = CurrencyConverter(base, rates)
-    conversion_rate = converter.get_conversion_rate(source, target)
+    try:
+        conversion_rate = fixer_api.latest_rate(source, target)
+    except ValueError:
+        abort(400) # Bad Request
+    except RuntimeError as e:
+        if e.args[0] == 'fixer API is unavailable':
+            abort(502) # Bad Gateway
+        else:
+            abort(500) # Internal Server Error
 
     return jsonify({
         'source': source,
@@ -34,15 +40,21 @@ def conversion_rate(source, target):
 
 @app.route('/convert/<string:source>/<string:target>/<int:amount>')
 @app.route('/convert/<string:source>/<string:target>/<float:amount>')
-def convert_value(source, target, amount):
+def convert_amount(source, target, amount):
     if not is_valid_amount(amount):
         abort(400)
 
     source, target = parse_currency_codes(source, target)
-    base, rates = get_base_and_rates()
 
-    converter = CurrencyConverter(base, rates)
-    converted = converter.convert_currency(source, target, amount)
+    try:
+        converted = fixer_api.convert_amount(source, target, amount)
+    except ValueError:
+        abort(400) # Bad Request
+    except RuntimeError as e:
+        if e.args[0] == 'fixer API is unavailable':
+            abort(502) # Bad Gateway
+        else:
+            abort(500) # Internal Server Error
 
     original_formatted, _, _ = format_currency_value(amount)
     converted_formatted, major_units, minor_units = format_currency_value(converted)
@@ -67,36 +79,6 @@ def parse_currency_codes(source, target):
         abort(400) # 400 - Bad Request
 
     return source, target
-
-
-def get_base_and_rates():
-    api_response = fixer_api.latest()
-
-    if not api_response.get('success'):
-        code = api_response.get('error', {}).get('code')
-        if code:
-            """
-            I am greatly oversimplifying here. Fixer includes useful error
-            codes for things like getting rate-limited. Anyway, if we don't
-            reject your request for bad parameters AND Fixer returns a well-
-            formed error, something is wrong in this service.
-            """
-            abort(500) # Internal Server Error
-        else:
-            """
-            Requests cannot parse the JSON returned by Fixer, which usually
-            returns JSON errors with codes. This means something is probably
-            wrong on their end.
-            """
-            abort(502) # Bad Gateway
-
-    if 'base' not in api_response or 'rates' not in api_response:
-        abort(500) # Internal Server Error
-
-    base = api_response['base']
-    rates = api_response['rates']
-
-    return base, rates
 
 
 def format_currency_value(exact):

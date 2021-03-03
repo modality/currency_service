@@ -61,7 +61,7 @@ class CurrencyConverter:
         return self.get_conversion_rate(source, self.base) * self.get_conversion_rate(self.base, target)
 
 
-    def convert_currency(self, source, target, amount):
+    def convert_amount(self, source, target, amount):
         """
         Converts an amount from a source to a target currency.
 
